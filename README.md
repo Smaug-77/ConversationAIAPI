@@ -1,6 +1,7 @@
 # ConversationalAI API for iOS
 
 **Important Notes:**
+
 > Users need to integrate and manage the initialization, lifecycle, and login status of RTC and RTM themselves.
 >
 > Please ensure that the lifecycle of RTC and RTM instances is longer than the component's lifecycle.
@@ -14,7 +15,7 @@
 > RTM Access Guide: [RTM](https://doc.shengwang.cn/doc/rtm2/swift/landing-page)
 
 ![Enable RTM feature in Agora Console](https://accktvpic.oss-cn-beijing.aliyuncs.com/pic/github_readme/ent-full/sdhy_7.jpg)
-*Screenshot: Enable RTM feature in Agora Console project settings*
+_Screenshot: Enable RTM feature in Agora Console project settings_
 
 ---
 
@@ -22,10 +23,17 @@
 
 ### CocoaPods (Recommended)
 
+#### Option 1: Let the pod manage dependencies automatically
+
 Add the following line to your `Podfile`:
 
 ```ruby
-pod 'ConversationalAIAPI', '~> 2.0.0'
+platform :ios, '13.0'
+use_frameworks!
+
+target 'YourAppTarget' do
+  pod 'ConversationalAIAPI-test', '~> 1.0.0'
+end
 ```
 
 Then run:
@@ -34,10 +42,41 @@ Then run:
 pod install
 ```
 
+This will automatically install the required dependencies:
+
+- `AgoraRtcEngine_iOS` (>= 4.5.1)
+- `AgoraRtm/RtmKit` (>= 2.2.2) - Lite version without `aosl.xcframework` conflict
+
+#### Option 2: Specify RTC/RTM versions manually
+
+If you already have RTC/RTM in your `Podfile`, make sure to use RTM lite version to avoid framework conflicts:
+
+```ruby
+platform :ios, '13.0'
+use_frameworks!
+
+target 'YourAppTarget' do
+  # RTC SDK (version must be >= 4.5.1)
+  pod 'AgoraRtcEngine_iOS', '~> 4.6.1'
+
+  # RTM SDK - IMPORTANT: Use lite version with subspec to avoid aosl.xcframework conflict
+  # Reference: https://doc.shengwang.cn/faq/integration-issues/rtm2-rtc-integration-issue
+  pod 'AgoraRtm', '~> 2.2.6', :subspecs => ['RtmKit']
+
+  # ConversationalAI API
+  pod 'ConversationalAIAPI-test', '~> 1.0.0'
+end
+```
+
+**Important Notes:**
+
+- If you specify RTM manually, you **must** use `:subspecs => ['RtmKit']` to avoid `aosl.xcframework` conflict with RTC SDK
+- The RTM version must be >= 2.2.2 to support the lite version
+- CocoaPods will merge dependency requirements, so you won't download duplicate SDKs
+
 ### Manual Integration
 
 1. Copy the following files and folders to your iOS project:
-
    - [ConversationalAIAPI](./) (entire folder)
 
 2. Ensure your project has integrated Agora RTC/RTM, and RTC version is **4.5.1 or above**.
@@ -51,11 +90,12 @@ Please follow these steps to quickly integrate and use the ConversationalAI API:
 1. **Initialize API Configuration**
 
    Create a configuration object using your RTC and RTM instances:
+
    ```swift
     let config = ConversationalAIAPIConfig(
-        rtcEngine: rtcEngine, 
-        rtmEngine: rtmEngine, 
-        renderMode: .words, 
+        rtcEngine: rtcEngine,
+        rtmEngine: rtmEngine,
+        renderMode: .words,
         enableLog: true
     )
    ```
@@ -69,6 +109,7 @@ Please follow these steps to quickly integrate and use the ConversationalAI API:
 3. **Register Event Callbacks**
 
    Implement and add event callbacks to receive AI agent events and transcript content:
+
    ```swift
    convoAIAPI.addHandler(handler: self)
    ```
@@ -77,6 +118,7 @@ Please follow these steps to quickly integrate and use the ConversationalAI API:
 
    Call before starting a session:
    **Must be called after logging in to RTM**
+
    ```swift
     convoAIAPI.subscribeMessage(channelName: channelName) { error in
         if let error = error {
@@ -94,7 +136,7 @@ Please follow these steps to quickly integrate and use the ConversationalAI API:
     rtcEngine.joinChannel(rtcToken: token, channelName: channelName, uid: uid, isIndependent: independent)
    ```
 
-7. **(Optional) Interrupt Agent**
+6. **(Optional) Interrupt Agent**
 
    ```swift
     convoAIAPI.interrupt(agentUserId: "\(agentUid)") { error in
@@ -106,10 +148,11 @@ Please follow these steps to quickly integrate and use the ConversationalAI API:
     }
    ```
 
-8. **Unsubscribe**
+7. **Unsubscribe**
+
 ```swift
     convoAIAPI.unsubscribeMessage(channelName: channelName) { error in
-        
+
     }
 ```
 
@@ -118,11 +161,13 @@ Please follow these steps to quickly integrate and use the ConversationalAI API:
    ```swift
     convoAIAPI.destroy()
    ```
+
 ---
 
 ## Send Image Message
 
 Use the sendImage interface to send an image message to the AI agent:
+
 ```swift
 let uuid = UUID().uuidString
 let imageUrl = "https://example.com/image.jpg"
@@ -141,7 +186,8 @@ self.convoAIAPI.chat(agentUserId: "\(agentUid)", message: message) { [weak self]
 The actual success or failure status of image sending is confirmed through the following two callbacks:
 
 1. **Image Sending Success - onMessageReceiptUpdated**
-When receiving the onMessageReceiptUpdated callback, follow these steps to confirm the image sending status:
+   When receiving the onMessageReceiptUpdated callback, follow these steps to confirm the image sending status:
+
 ```swift
 struct PictureInfo: Codable {
     let uuid: String
@@ -152,7 +198,7 @@ public func onMessageReceiptUpdated(agentUserId: String, messageReceipt: Message
           guard let messageData = messageReceipt.message.data(using: .utf8) else {
               return
           }
-          
+
           do {
               let imageInfo = try JSONDecoder().decode(PictureInfo.self, from: messageData)
               let uuid = imageInfo.uuid
@@ -165,11 +211,12 @@ public func onMessageReceiptUpdated(agentUserId: String, messageReceipt: Message
         print("Failed to parse message string from image info message")
         return
     }
-      
+
   }
 ```
 
 2. **Image Sending Failure - onMessageError**
+
 ```swift
 struct ImageUploadError: Codable {
     let code: Int
@@ -189,9 +236,9 @@ public func onMessageError(agentUserId: String, error: MessageError) {
             if !errorResponse.success {
                 let errorMessage = errorResponse.error?.message ?? "Unknown error"
                 let errorCode = errorResponse.error?.code ?? 0
-                
+
                 addLog("<<< [ImageUploadError] Image upload failed: \(errorMessage) (code: \(errorCode))")
-                
+
                 // Update UI to show error state
                 DispatchQueue.main.async { [weak self] in
                     self?.messageView.viewModel.updateImageMessage(uuid: errorResponse.uuid, state: .failed)
@@ -205,27 +252,28 @@ public func onMessageError(agentUserId: String, error: MessageError) {
 ```
 
 ## Notes
+
 - **Subscribe to Channel Messages**
- Call before starting a session:
-   **Must be called after logging in to RTM**
-   ```swift
-    convoAIAPI.subscribeMessage(channelName: channelName) { error in
-        if let error = error {
-            print("Subscription failed: \(error.message)")
-        } else {
-            print("Subscription successful")
-        }
-    }
-   ```
+  Call before starting a session:
+  **Must be called after logging in to RTM**
+
+  ```swift
+   convoAIAPI.subscribeMessage(channelName: channelName) { error in
+       if let error = error {
+           print("Subscription failed: \(error.message)")
+       } else {
+           print("Subscription successful")
+       }
+   }
+  ```
 
 - **Unsubscribe**
   Call at the end of each session:
-   ```swift
-    convoAIAPI.unsubscribeMessage(channelName: channelName) { error in
-        
-    }
+  ```swift
+   convoAIAPI.unsubscribeMessage(channelName: channelName) { error in
+
+   }
   ```
-  
 - **Audio Settings:**
   Before joining the RTC channel each time, you must call `loadAudioSettings()` to ensure optimal AI conversation audio quality.
   ```swift
@@ -233,7 +281,7 @@ public func onMessageError(agentUserId: String, error: MessageError) {
     rtcEngine.joinChannel(rtcToken: token, channelName: channelName, uid: uid, isIndependent: independent)
   ```
 - **Avatar Audio Settings：**
-If the avatar feature is enabled, the `.default` audio scene must be used to achieve optimal audio mixing effects.：
+  If the avatar feature is enabled, the `.default` audio scene must be used to achieve optimal audio mixing effects.：
   ```swift
     // Correct audio settings when enabling avatar
     convoAIAPI.loadAudioSettings(secnario: .default)
@@ -241,6 +289,7 @@ If the avatar feature is enabled, the `.default` audio scene must be used to ach
   ```
 
 Audio settings recommendations for different scenarios:
+
 - **Avatar mode**：`.default` - Deliver better audio mixing results
 - **Standard Mode**：`.aiClient` - Applicable to standard AI dialogue scenarios
 
@@ -255,7 +304,7 @@ Audio settings recommendations for different scenarios:
 - Xcode 12.0+
 - Swift 5.0+
 - AgoraRtcEngine_iOS >= 4.5.1
-- AgoraRtm_iOS >= 1.5.0
+- AgoraRtm/RtmKit >= 2.2.2 (Lite version to avoid framework conflicts)
 
 ## File Structure
 

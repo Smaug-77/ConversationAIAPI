@@ -1,6 +1,7 @@
 # ConversationalAI API for iOS
 
 **重要说明：**
+
 > 用户需自行集成并管理 RTC、RTM 的初始化、生命周期和登录状态。
 >
 > 请确保 RTC、RTM 实例的生命周期大于本组件的生命周期。
@@ -14,7 +15,7 @@
 > RTM 接入指南：[RTM](https://doc.shengwang.cn/doc/rtm2/swift/landing-page)
 
 ![在声网控制台开通 RTM 功能](https://accktvpic.oss-cn-beijing.aliyuncs.com/pic/github_readme/ent-full/sdhy_7.jpg)
-*截图：在声网控制台项目设置中开通 RTM 功能*
+_截图：在声网控制台项目设置中开通 RTM 功能_
 
 ---
 
@@ -22,10 +23,17 @@
 
 ### CocoaPods（推荐）
 
+#### 方式一：让 pod 自动管理依赖
+
 在你的 `Podfile` 中添加以下行：
 
 ```ruby
-pod 'ConversationalAIAPI', '~> 2.0.0'
+platform :ios, '13.0'
+use_frameworks!
+
+target 'YourAppTarget' do
+  pod 'ConversationalAIAPI-test', '~> 1.0.0'
+end
 ```
 
 然后运行：
@@ -33,6 +41,38 @@ pod 'ConversationalAIAPI', '~> 2.0.0'
 ```bash
 pod install
 ```
+
+这将自动安装所需的依赖：
+
+- `AgoraRtcEngine_iOS` (>= 4.5.1)
+- `AgoraRtm/RtmKit` (>= 2.2.2) - 轻量版本，避免 `aosl.xcframework` 冲突
+
+#### 方式二：手动指定 RTC/RTM 版本
+
+如果你已经在 `Podfile` 中声明了 RTC/RTM，请确保使用 RTM 轻量版本来避免框架冲突：
+
+```ruby
+platform :ios, '13.0'
+use_frameworks!
+
+target 'YourAppTarget' do
+  # RTC SDK（版本必须 >= 4.5.1）
+  pod 'AgoraRtcEngine_iOS', '~> 4.6.1'
+
+  # RTM SDK - 重要：使用轻量版本（subspec）避免 aosl.xcframework 冲突
+  # 参考：https://doc.shengwang.cn/faq/integration-issues/rtm2-rtc-integration-issue
+  pod 'AgoraRtm', '~> 2.2.6', :subspecs => ['RtmKit']
+
+  # ConversationalAI API
+  pod 'ConversationalAIAPI-test', '~> 1.0.0'
+end
+```
+
+**重要提示：**
+
+- 如果手动指定 RTM，**必须**使用 `:subspecs => ['RtmKit']` 来避免与 RTC SDK 的 `aosl.xcframework` 冲突
+- RTM 版本必须 >= 2.2.2 才支持轻量版本
+- CocoaPods 会合并依赖要求，不会重复下载 SDK
 
 ### 手动集成
 
@@ -50,11 +90,12 @@ pod install
 1. **初始化 API 配置**
 
    使用你的 RTC 和 RTM 实例创建配置对象：
+
    ```swift
     let config = ConversationalAIAPIConfig(
-        rtcEngine: rtcEngine, 
-        rtmEngine: rtmEngine, 
-        renderMode: .words, 
+        rtcEngine: rtcEngine,
+        rtmEngine: rtmEngine,
+        renderMode: .words,
         enableLog: true
     )
    ```
@@ -68,6 +109,7 @@ pod install
 3. **注册事件回调**
 
    实现并添加事件回调，接收 AI agent 事件和转录内容：
+
    ```swift
    convoAIAPI.addHandler(handler: self)
    ```
@@ -76,6 +118,7 @@ pod install
 
    在开始会话前调用：
    **必须在登录RTM之后调用**
+
    ```swift
     convoAIAPI.subscribeMessage(channelName: channelName) { error in
         if let error = error {
@@ -93,7 +136,7 @@ pod install
     rtcEngine.joinChannel(rtcToken: token, channelName: channelName, uid: uid, isIndependent: independent)
    ```
 
-7. **（可选）打断 agent**
+6. **（可选）打断 agent**
 
    ```swift
     convoAIAPI.interrupt(agentUserId: "\(agentUid)") { error in
@@ -104,11 +147,12 @@ pod install
         }
     }
    ```
-   
-8. **取消订阅**
+
+7. **取消订阅**
+
 ```swift
     convoAIAPI.unsubscribeMessage(channelName: channelName) { error in
-        
+
     }
 ```
 
@@ -117,11 +161,14 @@ pod install
    ```swift
     convoAIAPI.destroy()
    ```
+
 ---
 
 ## 发送图片消息
+
 - **发送图片**
-使用 sendImage 接口发送图片消息给 AI agent：
+  使用 sendImage 接口发送图片消息给 AI agent：
+
 ```swift
 let uuid = UUID().uuidString
 let imageUrl = "https://example.com/image.jpg"
@@ -134,10 +181,13 @@ self.convoAIAPI.chat(agentUserId: "\(agentUid)", message: message) { [weak self]
     }
 }
 ```
+
 ##处理图片发送状态
 图片发送的实际成功或失败状态通过以下两个回调来确认：
+
 1. **图片发送成功 - onMessageReceiptUpdated**
-当收到 onMessageReceiptUpdated 回调时，需要按以下步骤解析来确认图片发送状态：
+   当收到 onMessageReceiptUpdated 回调时，需要按以下步骤解析来确认图片发送状态：
+
 ```swift
 struct PictureInfo: Codable {
     let uuid: String
@@ -148,7 +198,7 @@ public func onMessageReceiptUpdated(agentUserId: String, messageReceipt: Message
           guard let messageData = messageReceipt.message.data(using: .utf8) else {
               return
           }
-          
+
           do {
               let imageInfo = try JSONDecoder().decode(PictureInfo.self, from: messageData)
               let uuid = imageInfo.uuid
@@ -161,10 +211,12 @@ public func onMessageReceiptUpdated(agentUserId: String, messageReceipt: Message
         print("Failed to parse message string from image info message")
         return
     }
-      
+
   }
 ```
+
 2. **图片发送失败 - onMessageError**
+
 ```swift
 struct ImageUploadError: Codable {
     let code: Int
@@ -184,9 +236,9 @@ public func onMessageError(agentUserId: String, error: MessageError) {
             if !errorResponse.success {
                 let errorMessage = errorResponse.error?.message ?? "Unknown error"
                 let errorCode = errorResponse.error?.code ?? 0
-                
+
                 addLog("<<< [ImageUploadError] Image upload failed: \(errorMessage) (code: \(errorCode))")
-                
+
                 // Update UI to show error state
                 DispatchQueue.main.async { [weak self] in
                     self?.messageView.viewModel.updateImageMessage(uuid: errorResponse.uuid, state: .failed)
@@ -200,27 +252,30 @@ public func onMessageError(agentUserId: String, error: MessageError) {
 ```
 
 ## 注意事项
+
 - **订阅频道消息**
- 在开始会话调用：
-   **必须在登录RTM之后调用**
-   ```swift
-    convoAIAPI.subscribeMessage(channelName: channelName) { error in
-        if let error = error {
-            print("订阅失败: \(error.message)")
-        } else {
-            print("订阅成功")
-        }
-    }
-   ```
+  在开始会话调用：
+  **必须在登录RTM之后调用**
+
+  ```swift
+   convoAIAPI.subscribeMessage(channelName: channelName) { error in
+       if let error = error {
+           print("订阅失败: \(error.message)")
+       } else {
+           print("订阅成功")
+       }
+   }
+  ```
 
 - **取消订阅**
   每次结束会话调用：
-   ```swift
-    convoAIAPI.unsubscribeMessage(channelName: channelName) { error in
-        
-    }
+
+  ```swift
+   convoAIAPI.unsubscribeMessage(channelName: channelName) { error in
+
+   }
   ```
-  
+
 - **音频设置：**
   每次加入 RTC 频道前，必须调用 `loadAudioSettings()`，以保证 AI 会话音质最佳。
   ```swift
@@ -228,7 +283,7 @@ public func onMessageError(agentUserId: String, error: MessageError) {
     rtcEngine.joinChannel(rtcToken: token, channelName: channelName, uid: uid, isIndependent: independent)
   ```
 - **数字人音频设置：**
-如果启用数字人功能，必须使用 `.default` 音频场景以获得最佳的音频混音效果：
+  如果启用数字人功能，必须使用 `.default` 音频场景以获得最佳的音频混音效果：
   ```swift
     // 启用数字人时的正确音频设置
     convoAIAPI.loadAudioSettings(secnario: .default)
@@ -236,6 +291,7 @@ public func onMessageError(agentUserId: String, error: MessageError) {
   ```
 
 不同场景的音频设置建议：
+
 - **数字人模式**：`.default` - 提供更好的音频混音效果
 - **标准模式**：`.aiClient` - 适用于标准AI对话场景
 
@@ -250,7 +306,7 @@ public func onMessageError(agentUserId: String, error: MessageError) {
 - Xcode 12.0+
 - Swift 5.0+
 - AgoraRtcEngine_iOS >= 4.5.1
-- AgoraRtm_iOS >= 1.5.0
+- AgoraRtm/RtmKit >= 2.2.2（轻量版本，避免框架冲突）
 
 ## 文件结构
 
